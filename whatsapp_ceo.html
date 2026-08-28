@@ -1,0 +1,861 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <title>WhatsApp — Simulador BEC</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <style>
+    :root {
+      --wa-incoming: #ffffff;
+      --wa-outgoing: #d9fdd3;
+      --wa-text: #111b21;
+      --wa-sub: #667781;
+      --wa-border: #e9edef;
+      --wa-tick: #53bdeb;
+      --wa-green: #00a884;
+      --wa-dark: #075e54;
+      --wa-bg: #eae6df;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
+
+    /* ── BACKGROUND ── */
+    html, body { height: 100%; }
+    body {
+      height: 100vh;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      background: radial-gradient(ellipse at 20% 50%, #0d2137 0%, #060d14 60%, #000 100%);
+      overflow: hidden;
+      gap: 16px;
+    }
+    .bg-particles { position: fixed; inset: 0; pointer-events: none; z-index: 0; }
+    .bg-particles span {
+      position: absolute;
+      border-radius: 50%;
+      background: rgba(0,168,132,0.08);
+      animation: float linear infinite;
+    }
+    @keyframes float {
+      0%   { transform: translateY(100vh) scale(0); opacity: 0; }
+      10%  { opacity: 1; }
+      90%  { opacity: 0.6; }
+      100% { transform: translateY(-10vh) scale(1.2); opacity: 0; }
+    }
+
+    /* ── PHONE SHELL ── */
+    .phone-wrap {
+      position: relative;
+      z-index: 1;
+      filter: drop-shadow(0 30px 60px rgba(0,0,0,0.9));
+      /* scale down to always fit viewport height with room for controls */
+      transform-origin: top center;
+    }
+    .phone-shell {
+      width: 360px;
+      height: 760px;
+      background: #1a1a1a;
+      border-radius: 48px;
+      box-shadow:
+        inset 0 0 0 1px #3a3a3a,
+        inset 0 0 0 3px #111,
+        0 0 0 1px #000;
+      overflow: hidden;
+      position: relative;
+      display: flex;
+      flex-direction: column;
+    }
+    /* side buttons */
+    .phone-shell::before {
+      content: "";
+      position: absolute;
+      left: -3px; top: 140px;
+      width: 3px; height: 36px;
+      background: #2a2a2a;
+      border-radius: 2px 0 0 2px;
+      box-shadow: 0 50px 0 #2a2a2a, 0 100px 0 #2a2a2a;
+    }
+    .phone-shell::after {
+      content: "";
+      position: absolute;
+      right: -3px; top: 180px;
+      width: 3px; height: 70px;
+      background: #2a2a2a;
+      border-radius: 0 2px 2px 0;
+    }
+    /* screen glare */
+    .screen-glare {
+      position: absolute;
+      top: 0; left: 0; right: 0;
+      height: 50%;
+      background: linear-gradient(160deg, rgba(255,255,255,0.04) 0%, transparent 60%);
+      pointer-events: none;
+      z-index: 100;
+      border-radius: 54px 54px 0 0;
+    }
+
+    /* ── NOTCH ── */
+    .notch {
+      position: absolute;
+      top: 0; left: 50%;
+      transform: translateX(-50%);
+      width: 126px; height: 34px;
+      background: #1a1a1a;
+      border-radius: 0 0 20px 20px;
+      z-index: 50;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+    }
+    .notch-cam {
+      width: 12px; height: 12px;
+      border-radius: 50%;
+      background: #0d0d0d;
+      border: 1.5px solid #2a2a2a;
+    }
+    .notch-speaker {
+      width: 44px; height: 5px;
+      background: #0d0d0d;
+      border-radius: 3px;
+    }
+
+    /* ── STATUS BAR ── */
+    .status-bar {
+      height: 44px;
+      background: var(--wa-dark);
+      display: flex;
+      align-items: flex-end;
+      justify-content: space-between;
+      padding: 0 22px 6px;
+      flex-shrink: 0;
+      color: #fff;
+      position: relative;
+      z-index: 10;
+    }
+    .status-bar .sb-time { font-size: 15px; font-weight: 700; letter-spacing: -0.3px; }
+    .sb-icons { display: flex; align-items: center; gap: 5px; font-size: 12px; }
+    .sb-signal { display: flex; align-items: flex-end; gap: 1.5px; height: 12px; }
+    .sb-signal span { width: 3px; background: #fff; border-radius: 1px; }
+    .sb-signal span:nth-child(1) { height: 4px; }
+    .sb-signal span:nth-child(2) { height: 6px; }
+    .sb-signal span:nth-child(3) { height: 9px; }
+    .sb-signal span:nth-child(4) { height: 12px; }
+    .sb-battery {
+      width: 22px; height: 11px;
+      border: 1.5px solid rgba(255,255,255,0.7);
+      border-radius: 2.5px;
+      position: relative;
+      display: flex;
+      align-items: center;
+      padding: 1.5px;
+    }
+    .sb-battery::after {
+      content: "";
+      position: absolute;
+      right: -4px; top: 50%;
+      transform: translateY(-50%);
+      width: 2px; height: 5px;
+      background: rgba(255,255,255,0.5);
+      border-radius: 0 1px 1px 0;
+    }
+    .sb-battery-fill { height: 100%; width: 70%; background: #fff; border-radius: 1px; }
+
+    /* ── CHAT HEADER ── */
+    .chat-header {
+      background: var(--wa-dark);
+      padding: 6px 14px 10px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      flex-shrink: 0;
+      z-index: 9;
+    }
+    .back-btn { color: rgba(255,255,255,0.9); font-size: 21px; cursor: pointer; padding: 4px 2px; }
+    .header-avatar-wrap { position: relative; flex-shrink: 0; }
+    .header-avatar {
+      width: 40px; height: 40px;
+      border-radius: 50%;
+      object-fit: cover;
+      display: block;
+      border: 2px solid rgba(255,255,255,0.2);
+    }
+    .online-dot {
+      position: absolute;
+      bottom: 1px; right: 1px;
+      width: 10px; height: 10px;
+      background: #4ade80;
+      border-radius: 50%;
+      border: 2px solid var(--wa-dark);
+      animation: pulse-dot 2s ease-in-out infinite;
+    }
+    @keyframes pulse-dot {
+      0%, 100% { box-shadow: 0 0 0 0 rgba(74,222,128,0.5); }
+      50%       { box-shadow: 0 0 0 4px rgba(74,222,128,0); }
+    }
+    .header-info { flex: 1; min-width: 0; cursor: pointer; }
+    .header-number { font-size: 15px; font-weight: 600; color: #fff; }
+    .header-status { font-size: 12px; color: rgba(255,255,255,0.8); margin-top: 1px; }
+    .header-actions { display: flex; gap: 20px; color: rgba(255,255,255,0.9); font-size: 19px; }
+    .header-actions i { cursor: pointer; transition: opacity .15s; }
+    .header-actions i:hover { opacity: 0.7; }
+
+    /* ── MESSAGES ── */
+    .message-container {
+      flex: 1;
+      overflow-y: auto;
+      padding: 10px 12px 14px;
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+      background-image: url('fondo.jpeg');
+      background-size: cover;
+      background-position: center;
+      scroll-behavior: smooth;
+    }
+    .message-container::-webkit-scrollbar { width: 4px; }
+    .message-container::-webkit-scrollbar-thumb { background: rgba(0,0,0,0.2); border-radius: 2px; }
+
+    .date-badge {
+      align-self: center;
+      background: rgba(255,255,255,0.88);
+      backdrop-filter: blur(4px);
+      padding: 4px 12px;
+      border-radius: 7px;
+      font-size: 12px;
+      color: var(--wa-sub);
+      margin: 6px 0 10px;
+      font-weight: 500;
+      box-shadow: 0 1px 2px rgba(0,0,0,0.12);
+    }
+
+    /* ── BUBBLES ── */
+    .bubble {
+      max-width: 80%;
+      padding: 6px 9px 8px;
+      border-radius: 7.5px;
+      font-size: 14px;
+      line-height: 1.45;
+      position: relative;
+      word-wrap: break-word;
+      margin-bottom: 1px;
+      animation: bubble-in 0.2s ease-out;
+    }
+    @keyframes bubble-in {
+      from { opacity: 0; transform: translateY(6px) scale(0.97); }
+      to   { opacity: 1; transform: translateY(0) scale(1); }
+    }
+    .bubble.incoming {
+      align-self: flex-start;
+      background: var(--wa-incoming);
+      border-top-left-radius: 0;
+      box-shadow: 0 1px 1px rgba(11,20,26,.12);
+    }
+    .bubble.outgoing {
+      align-self: flex-end;
+      background: var(--wa-outgoing);
+      border-top-right-radius: 0;
+      box-shadow: 0 1px 1px rgba(11,20,26,.12);
+    }
+    .bubble.incoming::before {
+      content: "";
+      position: absolute;
+      top: 0; left: -8px;
+      border-top: 8px solid var(--wa-incoming);
+      border-left: 8px solid transparent;
+    }
+    .bubble.outgoing::before {
+      content: "";
+      position: absolute;
+      top: 0; right: -8px;
+      border-top: 8px solid var(--wa-outgoing);
+      border-right: 8px solid transparent;
+    }
+    .bubble.no-tail { border-radius: 7.5px; margin-top: 1px; }
+    .bubble.no-tail::before { display: none; }
+
+    .bubble-meta {
+      font-size: 11px;
+      color: var(--wa-sub);
+      text-align: right;
+      margin-top: 3px;
+      display: flex;
+      justify-content: flex-end;
+      align-items: center;
+      gap: 3px;
+    }
+    .double-check { color: var(--wa-tick); font-size: 13px; }
+
+    /* ── TYPING INDICATOR ── */
+    .typing-bubble {
+      align-self: flex-start;
+      background: var(--wa-incoming);
+      border-radius: 7.5px;
+      border-top-left-radius: 0;
+      padding: 10px 14px;
+      box-shadow: 0 1px 1px rgba(11,20,26,.12);
+      display: flex;
+      gap: 4px;
+      align-items: center;
+      animation: bubble-in 0.2s ease-out;
+    }
+    .typing-bubble::before {
+      content: "";
+      position: absolute;
+      top: 0; left: -8px;
+      border-top: 8px solid var(--wa-incoming);
+      border-left: 8px solid transparent;
+    }
+    .typing-dot {
+      width: 7px; height: 7px;
+      background: #aab8c2;
+      border-radius: 50%;
+      animation: typing-bounce 1.2s ease-in-out infinite;
+    }
+    .typing-dot:nth-child(2) { animation-delay: 0.2s; }
+    .typing-dot:nth-child(3) { animation-delay: 0.4s; }
+    @keyframes typing-bounce {
+      0%, 60%, 100% { transform: translateY(0); background: #aab8c2; }
+      30%            { transform: translateY(-5px); background: #667781; }
+    }
+
+    /* ── VIDEO BUBBLE ── */
+    .video-bubble {
+      width: 230px;
+      height: 310px;
+      border-radius: 10px;
+      overflow: hidden;
+      background: #000;
+      margin-bottom: 4px;
+      position: relative;
+    }
+    .video-bubble video {
+      width: 100%; height: 100%;
+      display: block;
+      object-fit: cover;
+    }
+    .video-duration {
+      position: absolute;
+      bottom: 8px; right: 8px;
+      background: rgba(0,0,0,0.55);
+      color: #fff;
+      font-size: 11px;
+      padding: 2px 6px;
+      border-radius: 4px;
+      pointer-events: none;
+    }
+
+    /* ── DOCUMENT ── */
+    .doc-preview {
+      display: flex;
+      align-items: center;
+      background: rgba(0,0,0,0.04);
+      border-radius: 8px;
+      padding: 10px 12px;
+      gap: 12px;
+      margin-bottom: 4px;
+      cursor: pointer;
+      transition: background .15s;
+    }
+    .doc-preview:hover { background: rgba(0,0,0,0.08); }
+    .doc-icon-wrap {
+      width: 42px; height: 42px;
+      background: #fdecea;
+      border-radius: 8px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+    }
+    .doc-icon { font-size: 22px; color: #e53935; }
+    .doc-name { font-size: 13px; font-weight: 500; color: var(--wa-text); line-height: 1.3; }
+    .doc-size { font-size: 11px; color: var(--wa-sub); margin-top: 2px; }
+
+    /* ── INPUT BAR ── */
+    .input-bar {
+      background: #f0f2f5;
+      display: flex;
+      align-items: center;
+      padding: 8px 10px;
+      gap: 8px;
+      flex-shrink: 0;
+    }
+    .input-icons { color: #54656f; font-size: 22px; cursor: pointer; transition: color .15s; }
+    .input-icons:hover { color: #111b21; }
+    .input-box {
+      flex: 1;
+      background: #fff;
+      border-radius: 22px;
+      padding: 9px 14px;
+      font-size: 14px;
+      outline: none;
+      border: none;
+      color: var(--wa-text);
+      box-shadow: 0 1px 2px rgba(0,0,0,0.06);
+    }
+    .input-box::placeholder { color: #8696a0; }
+    .mic-btn {
+      width: 44px; height: 44px;
+      border-radius: 50%;
+      background: var(--wa-green);
+      border: none; color: #fff;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 18px; cursor: pointer; flex-shrink: 0;
+      box-shadow: 0 2px 6px rgba(0,168,132,0.4);
+      transition: background .15s, transform .1s;
+    }
+    .mic-btn:hover { background: #008f6f; transform: scale(1.05); }
+
+    /* ── HOME INDICATOR ── */
+    .home-indicator {
+      height: 26px;
+      background: #f0f2f5;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+    }
+    .home-indicator span {
+      width: 130px; height: 5px;
+      background: #111b21;
+      border-radius: 3px;
+      opacity: 0.15;
+    }
+
+    /* ── DEMO CONTROLS ── */
+    .demo-controls {
+      position: relative;
+      z-index: 999;
+      background: rgba(17,27,33,0.95);
+      backdrop-filter: blur(10px);
+      color: #fff;
+      padding: 10px 18px;
+      border-radius: 50px;
+      font-size: 12px;
+      box-shadow: 0 4px 20px rgba(0,0,0,0.5), 0 0 0 1px rgba(255,255,255,0.06);
+      display: flex;
+      gap: 8px;
+      align-items: center;
+      flex-shrink: 0;
+    }
+    .demo-label { font-size: 11px; color: #8696a0; font-weight: 500; letter-spacing: 0.5px; text-transform: uppercase; margin-right: 4px; }
+    .demo-btn {
+      background: var(--wa-green);
+      border: none; color: #fff;
+      padding: 7px 16px;
+      border-radius: 50px;
+      font-weight: 600;
+      cursor: pointer;
+      font-size: 11.5px;
+      transition: background .15s, transform .1s;
+      display: flex; align-items: center; gap: 5px;
+    }
+    .demo-btn:hover { background: #008f6f; transform: scale(1.03); }
+    .demo-btn:disabled { background: #2d3b42; color: #54656f; cursor: not-allowed; transform: none; }
+    .demo-btn.red { background: #c0392b; }
+    .demo-btn.red:hover { background: #a93226; }
+    .demo-btn.gray { background: #3a4a52; }
+    .demo-btn.gray:hover { background: #2d3b42; }
+
+    /* ── PDF OVERLAY ── */
+    .pdf-overlay {
+      position: fixed; inset: 0;
+      background: rgba(0,0,0,0.85);
+      backdrop-filter: blur(6px);
+      z-index: 1001;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 20px;
+      animation: fade-in .2s ease;
+    }
+    @keyframes fade-in { from { opacity: 0; } to { opacity: 1; } }
+    .pdf-viewer {
+      background: #fff;
+      width: 100%;
+      max-width: 400px;
+      border-radius: 12px;
+      overflow: hidden;
+      box-shadow: 0 20px 60px rgba(0,0,0,0.7);
+      animation: slide-up .25s ease;
+    }
+    @keyframes slide-up { from { transform: translateY(20px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+    .pdf-topbar {
+      background: #c62828;
+      color: #fff;
+      padding: 11px 16px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      font-size: 13px;
+      font-weight: 600;
+    }
+    .pdf-topbar-left { display: flex; align-items: center; gap: 8px; }
+    .pdf-topbar-left i { font-size: 16px; opacity: 0.9; }
+    .pdf-topbar-meta { font-size: 11px; font-weight: 400; opacity: 0.75; }
+    .pdf-close { cursor: pointer; font-size: 20px; opacity: 0.8; transition: opacity .15s; line-height: 1; }
+    .pdf-close:hover { opacity: 1; }
+    .pdf-body { padding: 28px 26px 30px; }
+    .pdf-scam-header {
+      text-align: center;
+      padding: 20px 0 18px;
+    }
+    .scam-icon-big { font-size: 56px; display: block; margin-bottom: 10px; }
+    .pdf-scam-header h1 {
+      font-size: 24px;
+      font-weight: 800;
+      color: #c62828;
+      letter-spacing: 1px;
+      text-transform: uppercase;
+      margin-bottom: 6px;
+    }
+    .pdf-scam-header p { font-size: 13px; color: #666; line-height: 1.5; }
+    .pdf-divider { border: none; border-top: 1px solid #eee; margin: 18px 0; }
+    .pdf-lesson {
+      background: #fffde7;
+      border-left: 4px solid #f9a825;
+      padding: 13px 15px;
+      border-radius: 0 6px 6px 0;
+      font-size: 13px;
+      color: #444;
+      line-height: 1.6;
+    }
+    .pdf-lesson b { color: #bf360c; }
+    .pdf-footer-note { text-align: center; margin-top: 18px; font-size: 11px; color: #bbb; }
+
+    /* ── ALERT PANEL ── */
+    .alert-overlay {
+      position: fixed; inset: 0;
+      background: rgba(0,0,0,0.8);
+      backdrop-filter: blur(6px);
+      z-index: 1000;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 20px;
+      animation: fade-in .2s ease;
+    }
+    .alert-panel {
+      background: #1a2530;
+      color: #fff;
+      border-radius: 16px;
+      padding: 26px 24px;
+      max-width: 460px;
+      width: 100%;
+      box-shadow: 0 20px 60px rgba(0,0,0,0.7), 0 0 0 1px rgba(255,255,255,0.06);
+      animation: slide-up .25s ease;
+    }
+    .alert-header { display: flex; align-items: center; gap: 10px; margin-bottom: 4px; }
+    .alert-header h2 { font-size: 17px; color: #ff6b6b; }
+    .alert-subtitle { font-size: 12px; color: #54656f; margin-bottom: 18px; padding-left: 2px; }
+    .flag-list { list-style: none; display: flex; flex-direction: column; gap: 8px; margin-bottom: 22px; }
+    .flag-item {
+      display: flex;
+      gap: 10px;
+      align-items: flex-start;
+      background: rgba(255,255,255,0.04);
+      border-radius: 8px;
+      padding: 9px 12px;
+      border-left: 3px solid transparent;
+      font-size: 13px;
+      line-height: 1.45;
+    }
+    .flag-item.red   { border-color: #ff6b6b; }
+    .flag-item.amber { border-color: #fbbf24; }
+    .flag-item.blue  { border-color: #60a5fa; }
+    .flag-icon { font-size: 15px; flex-shrink: 0; margin-top: 1px; }
+    .flag-item b { color: #e2e8f0; }
+    .alert-close-btn {
+      background: var(--wa-green);
+      border: none; color: #fff;
+      padding: 11px 20px;
+      border-radius: 8px;
+      font-weight: 700;
+      cursor: pointer;
+      font-size: 13px;
+      width: 100%;
+      letter-spacing: 0.3px;
+      transition: background .15s;
+    }
+    .alert-close-btn:hover { background: #008f6f; }
+  </style>
+</head>
+<body>
+
+  <!-- Particles -->
+  <div class="bg-particles" id="particles"></div>
+
+  <!-- Demo Controls -->
+  <div class="demo-controls">
+    <span class="demo-label">Simulador BEC</span>
+    <button class="demo-btn" id="btn-start" onclick="startFullScenario()">
+      <i class="fa-solid fa-play"></i> Iniciar
+    </button>
+    <button class="demo-btn gray" onclick="resetChat()">
+      <i class="fa-solid fa-rotate-left"></i> Reiniciar
+    </button>
+    <button class="demo-btn red" onclick="showAlertPanel()">
+      <i class="fa-solid fa-triangle-exclamation"></i> Red Flags
+    </button>
+  </div>
+
+  <!-- Phone -->
+  <div class="phone-wrap">
+    <div class="phone-shell">
+      <div class="screen-glare"></div>
+      <div class="notch">
+        <div class="notch-speaker"></div>
+        <div class="notch-cam"></div>
+      </div>
+
+      <!-- Status Bar -->
+      <div class="status-bar">
+        <span class="sb-time" id="sb-clock">15:47</span>
+        <div class="sb-icons">
+          <div class="sb-signal">
+            <span></span><span></span><span></span><span></span>
+          </div>
+          <i class="fa-solid fa-wifi" style="font-size:13px;"></i>
+          <div class="sb-battery">
+            <div class="sb-battery-fill"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Chat Header -->
+      <div class="chat-header">
+        <div class="back-btn"><i class="fa-solid fa-arrow-left"></i></div>
+        <div class="header-avatar-wrap">
+          <img class="header-avatar" src="T5DUR2ROQVNNRDOXLTL572F77U.avif" alt="perfil">
+        </div>
+        <div class="header-info">
+          <div class="header-number">+56 9 6231 4478</div>
+          <div class="header-status" id="typing-status"></div>
+        </div>
+        <div class="header-actions">
+          <i class="fa-solid fa-video"></i>
+          <i class="fa-solid fa-phone"></i>
+          <i class="fa-solid fa-ellipsis-vertical"></i>
+        </div>
+      </div>
+
+      <!-- Messages -->
+      <div class="message-container" id="msg-box">
+        <div class="date-badge">Hoy</div>
+        <div class="bubble incoming">
+          <div class="video-bubble">
+            <video controls preload="metadata">
+              <source src="Proyecto de vídeo 8.mp4" type="video/mp4">
+            </video>
+            <div class="video-duration">0:28</div>
+          </div>
+          <div class="bubble-meta">15:47</div>
+        </div>
+      </div>
+
+      <!-- Input Bar -->
+      <div class="input-bar">
+        <i class="fa-regular fa-face-smile input-icons"></i>
+        <input type="text" class="input-box" placeholder="Mensaje" readonly>
+        <i class="fa-solid fa-paperclip input-icons"></i>
+        <button class="mic-btn"><i class="fa-solid fa-microphone"></i></button>
+      </div>
+
+      <!-- Home Indicator -->
+      <div class="home-indicator"><span></span></div>
+    </div>
+  </div>
+
+  <!-- PDF Overlay -->
+  <div class="pdf-overlay" id="pdf-overlay" style="display:none;">
+    <div class="pdf-viewer">
+      <div class="pdf-topbar">
+        <div class="pdf-topbar-left">
+          <i class="fa-solid fa-file-pdf"></i>
+          <div>
+            <div>Factura_Servicios_Nube.pdf</div>
+            <div class="pdf-topbar-meta">198 KB · PDF</div>
+          </div>
+        </div>
+        <span class="pdf-close" onclick="document.getElementById('pdf-overlay').style.display='none'">&#x2715;</span>
+      </div>
+      <div class="pdf-body">
+        <div class="pdf-scam-header">
+          <span class="scam-icon-big">🚨</span>
+          <h1>Has sido estafado</h1>
+          <p>Este documento es parte de una simulación de ataque BEC<br>con fines de concientización en ciberseguridad.</p>
+        </div>
+        <hr class="pdf-divider">
+        <div class="pdf-lesson">
+          <b>Lo que ocurrió:</b> recibiste un video de alguien que se identificó como tu Director Ejecutivo, seguido de una factura urgente solicitando una transferencia a una cuenta externa, con instrucciones de no consultar al equipo y enviar el comprobante directamente.<br><br>
+          En un ataque real, ese dinero no se recupera.
+        </div>
+        <p class="pdf-footer-note">Simulación BEC · Solo con fines educativos</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- Alert Panel -->
+  <div class="alert-overlay" id="alert-overlay" style="display:none;">
+    <div class="alert-panel">
+      <div class="alert-header">
+        <span style="font-size:20px;">🚨</span>
+        <h2>Señales de Alerta — Ataque BEC</h2>
+      </div>
+      <p class="alert-subtitle">Indicadores presentes en esta simulación</p>
+      <ul class="flag-list">
+        <li class="flag-item red"><span class="flag-icon">📱</span><span><b>Número desconocido:</b> el Director nunca había escrito desde este número. Siempre verificar por canal oficial antes de actuar.</span></li>
+        <li class="flag-item red"><span class="flag-icon">🔇</span><span><b>Bloqueo de llamadas:</b> "no tendré señal" elimina el canal más simple para verificar la identidad.</span></li>
+        <li class="flag-item amber"><span class="flag-icon">⏰</span><span><b>Urgencia artificial:</b> el plazo de las 4:30 presiona a actuar sin reflexionar ni consultar.</span></li>
+        <li class="flag-item amber"><span class="flag-icon">🤐</span><span><b>Confidencialidad forzada:</b> pedir no comentarlo al equipo impide que otros detecten el fraude.</span></li>
+        <li class="flag-item red"><span class="flag-icon">💸</span><span><b>Transferencia fuera de proceso:</b> $12.360.000 a cuenta externa sin validación interna es la señal BEC clásica.</span></li>
+        <li class="flag-item blue"><span class="flag-icon">📧</span><span><b>Datos por correo externo:</b> enviar la cuenta bancaria por email evita dejar rastro en canales corporativos.</span></li>
+        <li class="flag-item blue"><span class="flag-icon">📄</span><span><b>Comprobante directo al atacante:</b> confirma que el dinero llegó a la cuenta fraudulenta.</span></li>
+      </ul>
+      <button class="alert-close-btn" onclick="document.getElementById('alert-overlay').style.display='none'">✔ Entendido — Cerrar</button>
+    </div>
+  </div>
+
+
+  <script>
+    // ── AUTO SCALE PHONE ──
+    function scalePhone() {
+      const wrap = document.querySelector('.phone-wrap');
+      const shell = document.querySelector('.phone-shell');
+      const controls = document.querySelector('.demo-controls');
+      const controlsH = controls ? controls.offsetHeight + 24 : 60;
+      const phoneH = shell.offsetHeight;
+      const phoneW = shell.offsetWidth;
+      const availH = window.innerHeight - controlsH - 32;
+      const availW = window.innerWidth - 40;
+      const scaleH = availH / phoneH;
+      const scaleW = availW / phoneW;
+      const scale = Math.min(scaleH, scaleW, 1);
+      wrap.style.transform = `scale(${scale})`;
+      // compensate for the space the scaled element still occupies
+      const shrinkH = phoneH * (1 - scale);
+      wrap.style.marginBottom = `-${shrinkH}px`;
+    }
+    scalePhone();
+    window.addEventListener('resize', scalePhone);
+
+    // ── CLOCK ──
+    function updateClock() {
+      const n = new Date();
+      document.getElementById('sb-clock').textContent =
+        `${String(n.getHours()).padStart(2,'0')}:${String(n.getMinutes()).padStart(2,'0')}`;
+    }
+    updateClock();
+    setInterval(updateClock, 10000);
+
+    function getTime() {
+      const n = new Date();
+      return `${String(n.getHours()).padStart(2,'0')}:${String(n.getMinutes()).padStart(2,'0')}`;
+    }
+
+    // ── PARTICLES ──
+    (function() {
+      const container = document.getElementById('particles');
+      for (let i = 0; i < 18; i++) {
+        const s = document.createElement('span');
+        const size = Math.random() * 60 + 20;
+        s.style.cssText = `
+          width:${size}px; height:${size}px;
+          left:${Math.random()*100}%;
+          animation-duration:${Math.random()*20+15}s;
+          animation-delay:${Math.random()*15}s;
+        `;
+        container.appendChild(s);
+      }
+    })();
+
+    // ── CORE ──
+    const msgBox = document.getElementById('msg-box');
+    const statusText = document.getElementById('typing-status');
+    const wait = ms => new Promise(r => setTimeout(r, ms));
+
+    function appendMessage(html, incoming = true, noTail = false) {
+      const b = document.createElement('div');
+      b.className = `bubble ${incoming ? 'incoming' : 'outgoing'}${noTail ? ' no-tail' : ''}`;
+      const checks = incoming ? '' : '<i class="fa-solid fa-check-double double-check"></i>';
+      b.innerHTML = `${html}<div class="bubble-meta">${getTime()}${checks}</div>`;
+      msgBox.appendChild(b);
+      msgBox.scrollTop = msgBox.scrollHeight;
+    }
+
+    let typingEl = null;
+    function showTyping() {
+      typingEl = document.createElement('div');
+      typingEl.className = 'typing-bubble';
+      typingEl.innerHTML = '<div class="typing-dot"></div><div class="typing-dot"></div><div class="typing-dot"></div>';
+      msgBox.appendChild(typingEl);
+      msgBox.scrollTop = msgBox.scrollHeight;
+      statusText.textContent = 'escribiendo...';
+      statusText.style.color = '#a8f0d8';
+    }
+    function hideTyping() {
+      if (typingEl) { typingEl.remove(); typingEl = null; }
+      statusText.textContent = 'en línea';
+      statusText.style.color = 'rgba(255,255,255,0.8)';
+    }
+
+    function openFakeInvoice() {
+      document.getElementById('pdf-overlay').style.display = 'flex';
+    }
+    function showAlertPanel() {
+      document.getElementById('alert-overlay').style.display = 'flex';
+    }
+
+    async function startFullScenario() {
+      document.getElementById('btn-start').disabled = true;
+
+      // 1 — PDF
+      showTyping(); await wait(2400); hideTyping();
+      appendMessage(`
+        <div class="doc-preview" onclick="openFakeInvoice()">
+          <div class="doc-icon-wrap"><i class="fa-solid fa-file-pdf doc-icon"></i></div>
+          <div>
+            <div class="doc-name">Factura_Servicios_Nube.pdf</div>
+            <div class="doc-size">198 KB · PDF</div>
+          </div>
+        </div>
+      `, true, true);
+      await wait(2600);
+
+      // 2 — víctima duda
+      appendMessage('Patricio, ¿puedo coordinar esto con Rodrigo antes de ejecutar? Es un monto importante.', false);
+      await wait(1600);
+
+      // 3 — atacante presiona
+      showTyping(); await wait(2600); hideTyping();
+      appendMessage('Martín, no hay tiempo. Rodrigo ya está al tanto, está copiado en el correo. Si no sale antes de las 4:30 se suspenden los servicios esta noche. Ejecuta ahora por favor.', true, true);
+      await wait(2400);
+
+      // 4 — víctima cede
+      appendMessage('Entendido, voy a procesar la transferencia ahora mismo.', false);
+      await wait(1400);
+
+      showAlertPanel();
+    }
+
+    function resetChat() {
+      document.getElementById('btn-start').disabled = false;
+      hideTyping();
+      msgBox.innerHTML = `
+        <div class="date-badge">Hoy</div>
+        <div class="bubble incoming">
+          <div class="video-bubble">
+            <video controls preload="metadata">
+              <source src="Proyecto de vídeo 8.mp4" type="video/mp4">
+            </video>
+            <div class="video-duration">0:28</div>
+          </div>
+          <div class="bubble-meta">15:47</div>
+        </div>
+      `;
+    }
+  </script>
+</body>
+</html>
