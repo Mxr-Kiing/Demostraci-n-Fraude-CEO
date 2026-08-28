@@ -1,12 +1,17 @@
-# Taller: Prevención de Fraude del CEO
+# Taller Prevención de Fraude del CEO y Phishing
 
-Página web interactiva con simulación de chat para capacitación en ciberseguridad.
+Aplicación web interactiva desarrollada para la capacitación interna y concientización sobre ingeniería social, enfocada en la detección de fraudes corporativos (CEO Fraud) y ataques de phishing a través de simulaciones de WhatsApp.
 
-## Archivos
-* `whatsapp_ceo.html` - Archivo principal de la interfaz.
-* `Proyecto de vídeo 8.mp4` - Video explicativo.
-* `fondo.jpeg` - Imagen de fondo.
-* `T5DUR2ROQVNNRDOXLTL572F77U.avif` - Recurso visual.
+**Enlace en vivo:** [https://singular-swan-913932.netlify.app](https://singular-swan-913932.netlify.app)
 
-## Ejecución
-Abre el archivo `whatsapp_ceo.html` en tu navegador web. Asegúrate de mantener todos los archivos juntos en la misma carpeta.
+---
+
+## Estructura del Proyecto
+
+```text
+BEC wsp/
+├── whatsapp_ceo.html              # Archivo principal con la interfaz interactiva
+├── fondo.jpeg                     # Imagen de fondo para la interfaz
+├── T5DUR2ROQVNNRDOXLTL572F77U.avif # Imagen ilustrativa / recurso visual
+└── Proyecto de vídeo 8.mp4        # Video explicativo / demostrativo del taller
+```
